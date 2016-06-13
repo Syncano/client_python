@@ -6,6 +6,7 @@ import os
 import socket
 import time
 import threading
+from base64 import b64encode
 from contextlib import closing
 from wsgiref.simple_server import make_server
 
@@ -102,12 +103,12 @@ def write_to_textfile(path, registry):
     os.rename(tmppath, path)
 
 
-def push_to_gateway(gateway, job, registry, grouping_key=None, timeout=None):
+def push_to_gateway(gateway, job, registry, grouping_key=None, timeout=None, **kwargs):
     '''Push metrics to the given pushgateway.
 
     This overwrites all metrics with the same job and grouping_key.
     This uses the PUT HTTP method.'''
-    _use_gateway('PUT', gateway, job, registry, grouping_key, timeout)
+    _use_gateway('PUT', gateway, job, registry, grouping_key, timeout, **kwargs)
 
 
 def pushadd_to_gateway(gateway, job, registry, grouping_key=None, timeout=None):
@@ -126,7 +127,7 @@ def delete_from_gateway(gateway, job, grouping_key=None, timeout=None):
     _use_gateway('DELETE', gateway, job, None, grouping_key, timeout)
 
 
-def _use_gateway(method, gateway, job, registry, grouping_key, timeout):
+def _use_gateway(method, gateway, job, registry, grouping_key, timeout, basic_auth_login=None, basic_auth_password=None):
     url = 'http://{0}/metrics/job/{1}'.format(gateway, quote_plus(job))
 
     data = b''
@@ -140,6 +141,8 @@ def _use_gateway(method, gateway, job, registry, grouping_key, timeout):
 
     request = Request(url, data=data)
     request.add_header('Content-Type', CONTENT_TYPE_LATEST)
+    if basic_auth_login and basic_auth_password:
+        request.add_header('Authorization', 'Basic {}'.format(b64encode(basic_auth_login + ':' + basic_auth_password))
     request.get_method = lambda: method
     resp = build_opener(HTTPHandler).open(request, timeout=timeout)
     if resp.code >= 400:
